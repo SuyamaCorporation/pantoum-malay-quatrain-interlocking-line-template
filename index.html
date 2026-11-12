@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>パントゥム詩テンプレート</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  .inherited-line { background: #eff6ff; border-left: 3px solid #3b82f6; }
+  .editable-line { background: #f0fdf4; border-left: 3px solid #22c55e; }
+  .preview-stanza { margin-bottom: 1.2em; }
+  .preview-line-inherited { color: #2563eb; font-style: italic; }
+  textarea { resize: vertical; }
+</style>
+</head>
+<body class="bg-gradient-to-br from-teal-50 to-emerald-50 min-h-screen">
+<div class="max-w-4xl mx-auto px-4 py-8">
+  <div class="text-center mb-6">
+    <h1 class="text-3xl font-bold text-teal-900 mb-1">パントゥム詩テンプレート</h1>
+    <p class="text-teal-700 text-sm">Pantun — マレー語起源の四行連詩インターロッキング構造</p>
+  </div>
+
+  <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+    <!-- Editor -->
+    <div>
+      <div class="bg-teal-100 border border-teal-300 rounded-lg p-4 mb-4 text-sm text-teal-800">
+        <strong>パントゥムの規則:</strong>
+        <ul class="mt-1 ml-4 list-disc space-y-1">
+          <li>各連は4行 (quatrain) ABAB韻</li>
+          <li>各連の<strong>行2と行4</strong>は、次の連の<strong>行1と行3</strong>になる</li>
+          <li>最終連: 第1連の行1=最終連行4、行3=最終連行2</li>
+          <li>青いラインは引き継ぎ行（自動入力）、緑は新規入力行</li>
+        </ul>
+      </div>
+
+      <div class="flex gap-2 mb-4">
+        <button onclick="addStanza()" class="bg-teal-600 text-white px-4 py-2 rounded text-sm hover:bg-teal-700">+ 連追加</button>
+        <button onclick="removeStanza()" id="remove-btn" class="bg-gray-400 text-white px-4 py-2 rounded text-sm hover:bg-gray-500">連削除</button>
+      </div>
+
+      <div id="editor" class="space-y-5"></div>
+    </div>
+
+    <!-- Preview -->
+    <div>
+      <div class="bg-white rounded-lg shadow p-5 sticky top-4">
+        <div class="flex items-center justify-between mb-3">
+          <h2 class="font-semibold text-gray-700">ライブプレビュー</h2>
+          <button onclick="copyPoem()" class="bg-green-600 text-white px-3 py-1 rounded text-xs hover:bg-green-700">📋 コピー</button>
+        </div>
+        <div id="title-preview" class="font-bold text-gray-800 mb-3 text-lg"></div>
+        <div id="preview" class="font-serif text-gray-800 leading-loose text-sm"></div>
+        <div class="mt-3 text-xs text-gray-400">青文字 = 引き継ぎ行</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="mt-4">
+    <label class="block text-sm font-medium text-gray-700 mb-1">詩のタイトル</label>
+    <input type="text" id="poem-title" placeholder="（任意）" oninput="renderAll()" class="w-full border rounded px-3 py-2 text-sm focus:ring-2 focus:ring-teal-400 max-w-sm">
+  </div>
+
+  <div id="copy-toast" class="hidden fixed bottom-6 right-6 bg-green-600 text-white px-4 py-2 rounded shadow-lg text-sm">クリップボードにコピーしました！</div>
+</div>
+
+<script>
+function escapeHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+
+// stanzas[i] = [line1, line2, line3, line4]
+// lines 0,2 may be inherited; lines 1,3 are always new input
+let stanzas = [
+  ['', '', '', ''],
+  ['', '', '', ''],
+];
+
+function getEffectiveStanzas() {
+  // Apply interlocking rules
+  const eff = stanzas.map(s => [...s]);
+  for (let i = 1; i < eff.length; i++) {
+    eff[i][0] = eff[i-1][1]; // prev line2 -> this line1
+    eff[i][2] = eff[i-1][3]; // prev line4 -> this line3
+  }
+  // Final stanza rule: line2 = stanza[0][2], line4 = stanza[0][0]
+  if (eff.length >= 2) {
+    const last = eff.length - 1;
+    eff[last][1] = stanzas[0][2]; // first stanza line3 (original)
+    eff[last][3] = stanzas[0][0]; // first stanza line1 (original)
+  }
+  return eff;
+}
+
+function renderEditor() {
+  const eff = getEffectiveStanzas();
+  const container = document.getElementById('editor');
+  container.innerHTML = '';
+
+  stanzas.forEach((s, si) => {
+    const isFirst = si === 0;
+    const isLast = si === stanzas.length - 1;
+    const div = document.createElement('div');
+    div.className = 'bg-white rounded-lg shadow p-4 border-2 border-' + (isLast ? 'amber-300' : isFirst ? 'teal-300' : 'gray-200');
+
+    const title = document.createElement('div');
+    title.className = 'flex items-center gap-2 mb-3';
+    const badge = document.createElement('span');
+    badge.className = 'text-xs font-bold px-2 py-0.5 rounded ' + (isFirst ? 'bg-teal-100 text-teal-700' : isLast ? 'bg-amber-100 text-amber-700' : 'bg-gray-100 text-gray-600');
+    badge.textContent = isFirst ? '第1連 (起点)' : isLast ? `第${si+1}連 (最終)` : `第${si+1}連`;
+    title.appendChild(badge);
+    div.appendChild(title);
+
+    [0,1,2,3].forEach(li => {
+      const lineDiv = document.createElement('div');
+      const isInherited = (si > 0 && (li === 0 || li === 2)) || (isLast && (li === 1 || li === 3));
+      lineDiv.className = 'mb-2 px-3 py-2 rounded ' + (isInherited ? 'inherited-line' : 'editable-line');
+
+      const lbl = document.createElement('div');
+      lbl.className = 'text-xs font-semibold mb-1 ' + (isInherited ? 'text-blue-600' : 'text-green-700');
+      let lblText = `行${li+1}`;
+      if (isInherited) lblText += ' (引き継ぎ)';
+      else lblText += ' (新規入力)';
+      lbl.textContent = lblText;
+      lineDiv.appendChild(lbl);
+
+      if (isInherited) {
+        const p = document.createElement('p');
+        p.className = 'text-sm text-blue-700 italic min-h-6';
+        p.textContent = eff[si][li] || '（前の連から引き継がれます）';
+        lineDiv.appendChild(p);
+      } else {
+        const ta = document.createElement('textarea');
+        ta.className = 'w-full text-sm border-0 bg-transparent focus:outline-none focus:ring-1 focus:ring-green-400 rounded';
+        ta.rows = 2;
+        ta.placeholder = `行${li+1}を入力...`;
+        ta.value = s[li];
+        const capturedSi = si, capturedLi = li;
+        ta.oninput = () => { stanzas[capturedSi][capturedLi] = ta.value; renderAll(); };
+        lineDiv.appendChild(ta);
+      }
+      div.appendChild(lineDiv);
+    });
+    container.appendChild(div);
+  });
+}
+
+function renderPreview() {
+  const eff = getEffectiveStanzas();
+  const title = document.getElementById('poem-title').value;
+  document.getElementById('title-preview').textContent = title;
+
+  const previewEl = document.getElementById('preview');
+  previewEl.innerHTML = '';
+
+  eff.forEach((stanza, si) => {
+    const isLast = si === stanzas.length - 1;
+    const div = document.createElement('div');
+    div.className = 'preview-stanza';
+    stanza.forEach((line, li) => {
+      const p = document.createElement('p');
+      const isInherited = (si > 0 && (li === 0 || li === 2)) || (isLast && (li === 1 || li === 3));
+      p.className = isInherited ? 'preview-line-inherited' : '';
+      p.textContent = line || `（行${li+1}）`;
+      div.appendChild(p);
+    });
+    previewEl.appendChild(div);
+  });
+}
+
+function renderAll() {
+  renderEditor();
+  renderPreview();
+  document.getElementById('remove-btn').disabled = stanzas.length <= 2;
+  document.getElementById('remove-btn').className = 'px-4 py-2 rounded text-sm ' + (stanzas.length <= 2 ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : 'bg-gray-400 text-white hover:bg-gray-500');
+}
+
+function addStanza() {
+  stanzas.push(['', '', '', '']);
+  renderAll();
+}
+
+function removeStanza() {
+  if (stanzas.length > 2) {
+    stanzas.pop();
+    renderAll();
+  }
+}
+
+function copyPoem() {
+  const eff = getEffectiveStanzas();
+  const title = document.getElementById('poem-title').value;
+  let text = title ? title + '\n\n' : '';
+  eff.forEach(stanza => {
+    text += stanza.join('\n') + '\n\n';
+  });
+  navigator.clipboard.writeText(text.trim()).then(() => {
+    const toast = document.getElementById('copy-toast');
+    toast.classList.remove('hidden');
+    setTimeout(() => toast.classList.add('hidden'), 2000);
+  });
+}
+
+renderAll();
+</script>
+</body>
+</html>
